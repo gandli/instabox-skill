@@ -52,6 +52,7 @@ const HELP = `ibx — InstaBox HTTP API client (Node 18+)
   ibx me | usage | templates
   ibx ls [--meta K=V]... [--limit N]
   ibx get <machine>
+  ibx label <machine> K=V... [--clear]     replace the machine's labels
   ibx create <name> [--template T | --snapshot S] [--timeout 30m] [--on-timeout pause|kill]
              [--auto-suspend 10m] [--meta K=V]... [--guest-user U] [--no-vault] [--no-wait]
   ibx start|stop|suspend|resume|rm <machine> [--no-wait]
@@ -220,11 +221,15 @@ function main() {
   }
 
   async function request(method, route, { body, idempotent = false, query } = {}) {
-    // Nested /v1/machines/{id}/... routes need the real ID; resolve a name once.
-    const nested = route.match(/^\/v1\/machines\/([^/?#]+)(\/.+)$/)
-    if (nested) {
-      const seg = decodeURIComponent(nested[1])
-      if (!seg.startsWith('m_')) {
+    // Machine routes need the real ID: nested /v1/machines/{id}/... routes and
+    // PATCH/DELETE on /v1/machines/{id}. Only `GET /v1/machines/{name}` accepts
+    // a name, so resolve everything else through it once.
+    const machineRoute = route.match(/^\/v1\/machines\/([^/?#]+)(\/.+)?$/)
+    if (machineRoute) {
+      const seg = decodeURIComponent(machineRoute[1])
+      const tail = machineRoute[2] || ''
+      const isNameLookup = !tail && method === 'GET'
+      if (!isNameLookup && !seg.startsWith('m_')) {
         if (!idCache.has(seg)) {
           const lookup = await send('GET', `${apiUrl}/v1/machines/${encodeURIComponent(seg)}`, {
             method: 'GET',
@@ -234,7 +239,7 @@ function main() {
           idCache.set(seg, data.id)
           idCache.set(data.id, data.id)
         }
-        route = `/v1/machines/${encodeURIComponent(idCache.get(seg))}${nested[2]}`
+        route = `/v1/machines/${encodeURIComponent(idCache.get(seg))}${tail}`
       }
     }
     let url = apiUrl + route
@@ -365,7 +370,11 @@ function main() {
         return
       }
       case 'ls': {
-        const metadata = many(opts, 'meta')
+        // The API wants key:value; accept the CLI's key=value too.
+        const metadata = many(opts, 'meta').map((kv) => {
+          const i = kv.indexOf('=')
+          return i > 0 ? `${kv.slice(0, i)}:${kv.slice(i + 1)}` : kv
+        })
         const { data } = await request('GET', '/v1/machines', {
           query: { metadata: metadata.length ? metadata : undefined, limit: one(opts, 'limit') },
         })
@@ -449,6 +458,25 @@ function main() {
           return process.stdout.write(`deleted ${ref}\n`)
         }
         return lifecycle(ref, action)
+      }
+      case 'label': {
+        const ref = args[0]
+        if (!ref) fail('usage: ibx label <machine> K=V [K=V ...] [--clear]')
+        const metadata = {}
+        if (!has(opts, 'clear')) {
+          for (const kv of args.slice(1)) {
+            const i = kv.indexOf('=')
+            if (i < 1) fail(`bad label "${kv}" (use key=value)`)
+            metadata[kv.slice(0, i)] = kv.slice(i + 1)
+          }
+          if (!Object.keys(metadata).length) fail('give at least one key=value, or --clear')
+        }
+        const { data } = await request('PATCH', `/v1/machines/${encodeURIComponent(ref)}`, {
+          body: { metadata },
+          idempotent: true,
+        })
+        if (asJson) return printJson(data)
+        return process.stdout.write(`labels ${data.name}: ${JSON.stringify(data.metadata || {})}\n`)
       }
       case 'timeout': {
         const ref = args[0]
