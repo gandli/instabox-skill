@@ -1,0 +1,13 @@
+# Ignore real secrets — only .env.example is committed.
+.env
+.env.*
+!.env.example
+
+# Dependencies and scratch files
+node_modules/
+*.log
+*.tmp
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
