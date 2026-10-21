@@ -5,6 +5,8 @@
 
 # Dependencies and scratch files
 node_modules/
+__pycache__/
+*.pyc
 *.log
 *.tmp
 .DS_Store

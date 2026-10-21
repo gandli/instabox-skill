@@ -78,7 +78,7 @@ function walk(dir) {
       walk(path);
     } else if (entry.name === 'SKILL.md') {
       const rel = relative(ROOT, path).split('\\').join('/');
-      if (!rel.startsWith('skills/') && !rel.startsWith('archive/')) {
+      if (!rel.startsWith('skills/')) {
         fail(`${rel}: SKILL.md outside skills/ would be discovered as a stray skill`);
       }
     }

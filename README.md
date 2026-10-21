@@ -56,7 +56,6 @@ skills/
   LICENSE, NOTICE                  # skills are Apache-2.0, derived from instabox
 tools/validate-skills.mjs          # frontmatter/discovery checks
 .github/workflows/validate.yml     # runs the checks and syntax checks on push/PR
-archive/legacy-single-skill/       # the original API/SDK skill; not for installation
 ```
 
 ## Validate
@@ -67,7 +66,7 @@ node tools/validate-skills.mjs
 
 Checks that every `skills/<name>/SKILL.md` has matching frontmatter, a `Use when`
 description and balanced code fences, and that no stray `SKILL.md` exists outside
-`skills/` (or `archive/`).
+`skills/`.
 
 ## Changes from upstream
 
@@ -108,19 +107,12 @@ Robustness:
   applications wrote to disk. Never print a credential.
 - A box runs one lifecycle operation at a time; wait for the operation before the next.
 
-## Archived
-
-[`archive/legacy-single-skill/`](archive/legacy-single-skill/) keeps the original
-2026-10 API/SDK/CLI skill and its `scripts/ibx.mjs` HTTP client for reference. It is
-outdated and must not be installed.
-
 ## License
 
-The repository's own files (README, tooling, archived material) are MIT — see
-[LICENSE](LICENSE). The skills under [`skills/`](skills/) are derived from the instabox
-project and licensed under the Apache License 2.0 — see
-[skills/LICENSE](skills/LICENSE) and [skills/NOTICE](skills/NOTICE), which records the
-modifications.
+The repository's own files (README, tooling) are MIT — see [LICENSE](LICENSE). The
+skills under [`skills/`](skills/) are derived from the instabox project and licensed
+under the Apache License 2.0 — see [skills/LICENSE](skills/LICENSE) and
+[skills/NOTICE](skills/NOTICE), which records the modifications.
 
 ## Sources
 
