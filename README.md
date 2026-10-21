@@ -1,99 +1,130 @@
-# InstaBox skill
+# Instabox agent skills
 
-An agent skill for [InstaBox](https://instabox.sh) — cloud Linux machines you create, drive and throw away from the CLI, the HTTP API or the TypeScript SDK.
+Four [agent skills](https://agentskills.io) for [Instabox](https://instabox.sh) —
+cloud Linux sandboxes you create, drive and throw away from the terminal. This is a
+hardened fork of the skills shipped by `npx instabox@latest` (npm `instabox` 0.6.3),
+with the correctness fixes listed [below](#changes-from-upstream).
 
-One `SKILL.md` with everything an agent needs to go from "make me a box" to a running command, a snapshot or a shareable desktop link, plus deep reference files it can load only when required.
+| Skill | Use when | Covers |
+|---|---|---|
+| [`instabox`](skills/instabox/SKILL.md) | Any work with an Instabox box: create, SSH/exec, files, ports, desktop, pause, delete | CLI, templates, sizes, org Secrets, feedback |
+| [`instabox-snapshots`](skills/instabox-snapshots/SKILL.md) | "save a snapshot", "restore/load a box", "clone this box" | `snapshot save/ls/files/rm`, `create --snapshot` |
+| [`instabox-move-repo`](skills/instabox-move-repo/SKILL.md) | "move this repo to instabox", "continue this work in the cloud" | repo + worktrees, Claude/Codex conversations, dependency install |
+| [`instabox-basic-setup`](skills/instabox-basic-setup/SKILL.md) | "put my tokens / dotfiles / git config into instabox" | org Secrets, git/editor config copies |
 
-## What it covers
-
-| Area | In the skill |
-|---|---|
-| Machines | create, list, get, update, delete; templates; guest user; labels |
-| Lifecycle | start, stop, suspend (pause), resume, one-operation-at-a-time, idle pause, wake |
-| Timeouts | `timeoutSeconds`, `onTimeout` pause/kill, `autoSuspendAfterSeconds`, archive |
-| Commands | `exec` (bash -lc, stdin, cwd, env, limits), output and exit-code behaviour |
-| Files | read/list live files, read snapshot files, SDK write/remove/exists |
-| Snapshots | save (live and stopped), `rootOnly`, list/get/delete, start from a snapshot |
-| SSH | token flow, certificate flow, `ssh-config`, mosh, host CA, supported features |
-| Public ports | publish, list, unpublish, URL shape, waking, the public-URL caveat |
-| Desktop | start/status, screenshots, click/type/press/scroll, stream links, revoke |
-| Vault | env and file items, selectors, push, `--no-vault`, sign-in-only management |
-| Metrics & usage | per-machine samples, billing usage, account usage and limits |
-| Auth & scopes | `ibk_` keys, scope matrix, which routes reject API keys |
-| Errors | every documented code, status mapping and retry rules |
-| OpenAPI | full route inventory and how to fetch the live spec |
+Each skill is a directory with a `SKILL.md`; the longer workflows ship scripts beside
+it that the agent runs locally or on the box.
 
 ## Install
 
-With the [skills](https://github.com/vercel-labs/skills) CLI:
+With the [`skills`](https://github.com/vercel-labs/skills) CLI (choose skills and agents):
 
 ```bash
 npx skills add gandli/instabox-skill
 ```
 
-Or copy it into your agent's skills directory:
+Or copy a skill into your agent's skills directory:
 
 ```bash
-git clone https://github.com/gandli/instabox-skill.git
-cp -r instabox-skill ~/.claude/skills/instabox     # Claude Code
-# or: .cursor/skills/, .codex/skills/, ~/.config/agents/skills/, …
+cp -r skills/instabox ~/.claude/skills/instabox     # Claude Code
+cp -r skills/instabox ~/.agents/skills/instabox     # other agents using ~/.agents
 ```
 
-The skill is plain Markdown — any agent that can read files can use it.
+The official installer (`npx instabox@latest`) signs you in, installs the `instabox`
+CLI and writes the upstream skills to `~/.claude/skills` and `~/.agents/skills`. It uses
+the same skill names, so install **one** set: if you install these, either skip the
+installer's skills (`--no-skills`) or remove `metadata.installed-by` from the installed
+copies so later CLI updates keep your version.
 
-## Set up credentials
+## Requirements
+
+- Node.js 18+ and `bash` for the bundled scripts.
+- `jq` for `instabox-basic-setup` and `instabox-move-repo`; `git` ≥ 2.36 and `tar` for
+  `instabox-move-repo`.
+- Python 3 inside sandboxes that receive config files (`instabox-basic-setup`).
+- macOS or Linux for the shell workflows; on Windows use WSL or Git Bash (the
+  `instabox` CLI itself also runs natively).
+
+## Repository layout
+
+```text
+skills/
+  instabox/SKILL.md
+  instabox-snapshots/SKILL.md
+  instabox-move-repo/{SKILL.md,scripts/}
+  instabox-basic-setup/{SKILL.md,scripts/}
+  LICENSE, NOTICE                  # skills are Apache-2.0, derived from instabox
+tools/validate-skills.mjs          # frontmatter/discovery checks
+.github/workflows/validate.yml     # runs the checks and syntax checks on push/PR
+archive/legacy-single-skill/       # the original API/SDK skill; not for installation
+```
+
+## Validate
 
 ```bash
-cp .env.example .env      # then put your key in .env
-export INSTABOX_API_KEY=ibk_...   # or export it directly
+node tools/validate-skills.mjs
 ```
 
-`.env` is gitignored. Never commit it, paste it into a browser bundle, or put a key in an HTML page. A key with `machines:write` can read your Vault from a machine it creates, so pass `"vault": false` for machines that run other people's code.
+Checks that every `skills/<name>/SKILL.md` has matching frontmatter, a `Use when`
+description and balanced code fences, and that no stray `SKILL.md` exists outside
+`skills/` (or `archive/`).
 
-## Quick start
+## Changes from upstream
 
-```bash
-# official CLI
-curl -fsSL https://api.instabox.sh/install.sh | sh
-instabox create --name dev --template universal --timeout 30m
-instabox exec dev -- uname -a
-instabox suspend dev
+Correctness:
 
-# or the bundled zero-dependency HTTP client (Node 18+)
-node scripts/ibx.mjs create dev --template universal --timeout 30m
-node scripts/ibx.mjs exec dev -- uname -a
-node scripts/ibx.mjs ls
-```
+- **Accounts:** GitHub and Google sign-ins are separate accounts, even with the same
+  email (the upstream skill said they share one).
+- **Snapshots:** they belong to the source box's org — every member can see, use and
+  delete them — count against the org's limits, must be `ready` before use, and the new
+  box always joins the snapshot's org.
+- **Idle pause:** a public port URL does not wake an idle-paused box; `exec`, `ssh`,
+  `files` and `instabox wake` do. Manual pause/stop stays offline until `resume`/`start`.
+- **Idle choices:** documented `manualLifecycle`, `idleChoicesSeconds` and
+  `fixedAutoSuspendSeconds` instead of promising `--auto-suspend` works for everyone.
+- **Prerequisites:** `jq`/`git`/`tar` and the `exec` timeout (60 s default, 600 s max)
+  are stated instead of "nothing to install".
+- **Secrets:** proxy delivery scope (HTTPS headers on allowed hosts, port 443, private
+  addresses rejected), Vault commands and feedback flags are accurate.
 
-`scripts/ibx.mjs` speaks the documented HTTP API only; it is a fallback for environments without the CLI, not a replacement for it.
+Robustness:
 
-## Layout
+- Skill scripts are located from the skill's own directory instead of a hard-coded
+  `~/.claude/skills` path; the docs say when one shell session is required.
+- `instabox-move-repo` fails fast (`pipefail` + explicit check), initialises submodules,
+  verifies copied history, and documents `--keep`/`--dest`/sanitised names precisely.
+- `instabox-basic-setup` documents exit codes, the `org ls --json` shape, JSON
+  validation, check-box format and the `orgSecrets` fallback.
+- `push.mjs` no longer fails a proxy-only selection when no guest environment is
+  installed.
+- Skill descriptions are shorter and trigger-focused, with cross-skill routing kept in
+  the bodies.
 
-```
-SKILL.md                 entry point: workflows, constraints, pointers
-references/cli.md        every CLI command and flag
-references/http-api.md   every documented endpoint, field and response
-references/sdk.md        @insforge/instabox-sdk classes and methods
-references/concepts.md   states, timeouts, vault, scopes, limits, errors
-references/openapi.md    full route inventory + live spec
-scripts/ibx.mjs          dependency-free HTTP client (Node 18+)
-```
+## Safety notes
 
-Progressive disclosure is deliberate: `SKILL.md` stays small, and the reference files carry the long tables an agent loads only for the task at hand.
+- `instabox rm` deletes the box and its disks; save a snapshot first if it matters.
+- Published port URLs are public to anyone who has them until unpublished.
+- `env` Secrets are readable by code in the box; snapshots can contain credentials that
+  applications wrote to disk. Never print a credential.
+- A box runs one lifecycle operation at a time; wait for the operation before the next.
 
-## Safety notes baked into the skill
+## Archived
 
-- One operation per machine; wait on `operationId` before the next change.
-- Lifecycle and snapshot mutations need an `Idempotency-Key`; `exec` is never retried.
-- Public port URLs are public to anyone who has them.
-- Machine size is fixed at 4 vCPU / 8 GiB; size fields are rejected.
-- Quotas: 5 machines, 10 snapshots, 200 GB, 20 keys, 16 ports per machine.
-- Desktop stream links are view-only by default and revocable; they are not API keys.
-
-## Sources
-
-Built from the official documentation (<https://instabox.sh/docs>, read 2026-10-18) and the live OpenAPI document (<https://api.instabox.sh/v1/openapi.json>). Where they differ, the docs pages are treated as the supported contract and the spec as the schema source.
+[`archive/legacy-single-skill/`](archive/legacy-single-skill/) keeps the original
+2026-10 API/SDK/CLI skill and its `scripts/ibx.mjs` HTTP client for reference. It is
+outdated and must not be installed.
 
 ## License
 
-MIT
+The repository's own files (README, tooling, archived material) are MIT — see
+[LICENSE](LICENSE). The skills under [`skills/`](skills/) are derived from the instabox
+project and licensed under the Apache License 2.0 — see
+[skills/LICENSE](skills/LICENSE) and [skills/NOTICE](skills/NOTICE), which records the
+modifications.
+
+## Sources
+
+Built from the official documentation (<https://instabox.sh/docs>), the `instabox` CLI
+0.6.3 (`instabox help`, `--help` for every subcommand) and the live OpenAPI document
+(<https://api.instabox.sh/v1/openapi.json>), read 2026-10-22. The CLI, not this
+repository, remains the source of truth when they disagree.

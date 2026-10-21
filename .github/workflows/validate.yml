@@ -1,0 +1,28 @@
+name: Validate skills
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Validate skill structure
+        run: node tools/validate-skills.mjs
+      - name: Syntax-check bundled scripts
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s globstar nullglob
+          for file in skills/**/*.mjs; do node --check "$file"; done
+          for file in skills/**/*.sh; do bash -n "$file"; done
+          for file in skills/**/*.py; do python3 -m py_compile "$file"; done

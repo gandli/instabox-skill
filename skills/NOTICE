@@ -1,0 +1,19 @@
+Instabox agent skills
+Copyright (c) the instabox authors (https://github.com/InsForge/instabox)
+
+The skills in this directory are derived from the agent skills shipped in the
+instabox npm package (version 0.6.3, 2026-10-22), licensed under the Apache
+License, Version 2.0. A copy of that license is in LICENSE in this directory.
+
+Modifications 2026 by gandli (https://github.com/gandli):
+
+- corrected the account model (GitHub and Google sign-ins are separate),
+  snapshot ownership (the source sandbox's org), idle auto-suspend choices,
+  wake triggers (public port URLs do not wake a box) and credential notes;
+- added prerequisites, failure handling, verification steps and cross-skill
+  routing; removed hard-coded skill install paths;
+- documented the exact move-repo, basic-setup and snapshot workflows;
+- fixed a proxy-only Secret push reporting a false guest-delivery failure.
+
+The rest of this repository (README, validation tooling, archived files) is
+licensed under the MIT License; see the root LICENSE file.

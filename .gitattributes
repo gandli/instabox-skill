@@ -1,0 +1,9 @@
+# Normalize text on commit; check out LF so shell and Node scripts keep working
+# on every platform (Windows included).
+* text=auto
+*.sh text eol=lf
+*.mjs text eol=lf
+*.py text eol=lf
+*.md text eol=lf
+*.yml text eol=lf
+*.json text eol=lf
